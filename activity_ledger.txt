@@ -7,3 +7,4 @@
 [2026-04-06T20:46:32+05:30] feat: add audio playback trigger debounce for Hindi translation
 [2026-04-06T23:36:27+05:30] feat: add visual confidence percentage indicator beside recognized sign
 [2026-04-07T10:25:45+05:30] refactor: streamline OpenRouter fallback to Google Gemini model
+[2026-04-07T11:22:34+05:30] fix: resolve frame rate drop when video stream buffer overflows

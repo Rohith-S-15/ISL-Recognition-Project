@@ -11,3 +11,4 @@
 [2026-04-07T14:14:07+05:30] test: verify template matching consistency across 100 test runs
 [2026-04-07T15:35:42+05:30] docs: add setup guide for USB webcam device index configuration
 [2026-04-07T16:50:35+05:30] test: verify template matching consistency across 100 test runs
+[2026-04-07T17:28:15+05:30] fix: handle camera disconnect gracefully with auto-retry timeout

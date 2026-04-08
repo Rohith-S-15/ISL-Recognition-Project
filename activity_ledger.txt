@@ -16,3 +16,4 @@
 [2026-04-07T19:43:37+05:30] feat: adjust cosine distance threshold for rapid transitions
 [2026-04-08T09:29:12+05:30] feat: implement gesture hold timer before triggering sentence
 [2026-04-08T15:17:28+05:30] feat: adjust cosine distance threshold for rapid transitions
+[2026-04-08T16:32:09+05:30] docs: add setup guide for USB webcam device index configuration

@@ -14,3 +14,4 @@
 [2026-04-07T17:28:15+05:30] fix: handle camera disconnect gracefully with auto-retry timeout
 [2026-04-07T18:52:47+05:30] test: verify template matching consistency across 100 test runs
 [2026-04-07T19:43:37+05:30] feat: adjust cosine distance threshold for rapid transitions
+[2026-04-08T09:29:12+05:30] feat: implement gesture hold timer before triggering sentence

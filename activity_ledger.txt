@@ -24,3 +24,4 @@
 [2026-04-08T22:54:07+05:30] test: verify template matching consistency across 100 test runs
 [2026-04-09T10:14:07+05:30] test: add boundary check test for single-hand occlusion frames
 [2026-04-09T12:39:20+05:30] docs: add architectural trade-off section comparing LSTM to Cosine
+[2026-04-09T16:52:22+05:30] feat: implement gesture hold timer before triggering sentence

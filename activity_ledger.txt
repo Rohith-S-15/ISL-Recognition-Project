@@ -29,3 +29,4 @@
 [2026-04-10T19:11:07+05:30] fix: correct landmark indexing offset in left-hand coordinates
 [2026-04-10T22:24:24+05:30] test: add unit coverage for Devanagari font rendering in canvas
 [2026-04-12T16:11:25+05:30] feat: support hot-reloading newly recorded .npy sign templates
+[2026-04-12T19:55:50+05:30] fix: handle camera disconnect gracefully with auto-retry timeout

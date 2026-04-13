@@ -33,3 +33,4 @@
 [2026-04-12T23:08:15+05:30] perf: cache template vector norms during engine initialization
 [2026-04-13T11:09:17+05:30] feat: support hot-reloading newly recorded .npy sign templates
 [2026-04-13T12:19:24+05:30] perf: cache template vector norms during engine initialization
+[2026-04-13T17:33:55+05:30] style: adjust bounding box colors for left and right hand overlays

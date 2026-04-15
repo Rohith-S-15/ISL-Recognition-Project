@@ -37,3 +37,4 @@
 [2026-04-13T22:30:50+05:30] feat: add audio playback trigger debounce for Hindi translation
 [2026-04-14T15:51:26+05:30] feat: add visual confidence percentage indicator beside recognized sign
 [2026-04-15T18:34:18+05:30] style: smooth landmark line thickness during live rendering
+[2026-04-15T21:28:18+05:30] test: verify template matching consistency across 100 test runs

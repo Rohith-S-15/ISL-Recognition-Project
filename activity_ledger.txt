@@ -40,3 +40,4 @@
 [2026-04-15T21:28:18+05:30] test: verify template matching consistency across 100 test runs
 [2026-04-15T22:20:06+05:30] feat: implement gesture hold timer before triggering sentence
 [2026-04-16T09:50:43+05:30] test: add unit coverage for Devanagari font rendering in canvas
+[2026-04-16T10:04:32+05:30] feat: add visual confidence percentage indicator beside recognized sign

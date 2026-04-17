@@ -47,3 +47,4 @@
 [2026-04-17T12:55:44+05:30] style: smooth landmark line thickness during live rendering
 [2026-04-17T13:41:18+05:30] docs: update performance benchmark table with CPU latency stats
 [2026-04-17T14:43:22+05:30] fix: correct landmark indexing offset in left-hand coordinates
+[2026-04-17T16:25:04+05:30] refactor: clean up camera thread capture loop exception handling

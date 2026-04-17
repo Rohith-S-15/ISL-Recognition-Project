@@ -43,3 +43,4 @@
 [2026-04-16T10:04:32+05:30] feat: add visual confidence percentage indicator beside recognized sign
 [2026-04-16T14:09:05+05:30] fix: handle camera disconnect gracefully with auto-retry timeout
 [2026-04-16T20:12:55+05:30] refactor: streamline OpenRouter fallback to Google Gemini model
+[2026-04-17T11:28:46+05:30] refactor: streamline OpenRouter fallback to Google Gemini model

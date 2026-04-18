@@ -52,3 +52,4 @@
 [2026-04-18T09:09:08+05:30] fix: correct landmark indexing offset in left-hand coordinates
 [2026-04-18T10:16:23+05:30] perf: vectorize wrist-relative normalization in NumPy
 [2026-04-18T11:28:55+05:30] style: update dark dashboard canvas aspect ratio to 16:9
+[2026-04-18T12:42:24+05:30] refactor: streamline OpenRouter fallback to Google Gemini model

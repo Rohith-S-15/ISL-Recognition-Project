@@ -58,3 +58,4 @@
 [2026-04-19T10:02:06+05:30] docs: update performance benchmark table with CPU latency stats
 [2026-04-19T13:55:15+05:30] perf: cache template vector norms during engine initialization
 [2026-04-19T14:27:51+05:30] chore: update requirements.txt with pinned opencv version
+[2026-04-19T15:48:16+05:30] test: add boundary check test for single-hand occlusion frames

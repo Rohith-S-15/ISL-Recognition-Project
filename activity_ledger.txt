@@ -61,3 +61,4 @@
 [2026-04-19T15:48:16+05:30] test: add boundary check test for single-hand occlusion frames
 [2026-04-19T17:24:17+05:30] refactor: separate similarity engine logic from route handlers
 [2026-04-19T22:38:48+05:30] docs: update performance benchmark table with CPU latency stats
+[2026-04-19T23:42:30+05:30] feat: support hot-reloading newly recorded .npy sign templates

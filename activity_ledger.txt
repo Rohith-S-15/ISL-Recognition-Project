@@ -56,3 +56,4 @@
 [2026-04-18T15:11:43+05:30] style: smooth landmark line thickness during live rendering
 [2026-04-18T21:56:18+05:30] perf: vectorize wrist-relative normalization in NumPy
 [2026-04-19T10:02:06+05:30] docs: update performance benchmark table with CPU latency stats
+[2026-04-19T13:55:15+05:30] perf: cache template vector norms during engine initialization

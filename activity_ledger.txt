@@ -70,3 +70,4 @@
 [2026-04-20T18:57:55+05:30] fix: prevent multiple concurrent TTS generation requests
 [2026-04-20T20:04:09+05:30] docs: add architectural trade-off section comparing LSTM to Cosine
 [2026-04-20T21:53:06+05:30] docs: add setup guide for USB webcam device index configuration
+[2026-04-20T23:20:10+05:30] style: smooth landmark line thickness during live rendering

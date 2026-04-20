@@ -67,3 +67,4 @@
 [2026-04-20T14:33:06+05:30] fix: prevent multiple concurrent TTS generation requests
 [2026-04-20T15:44:28+05:30] feat: support hot-reloading newly recorded .npy sign templates
 [2026-04-20T17:34:35+05:30] fix: prevent multiple concurrent TTS generation requests
+[2026-04-20T18:57:55+05:30] fix: prevent multiple concurrent TTS generation requests

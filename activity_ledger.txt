@@ -63,3 +63,4 @@
 [2026-04-19T22:38:48+05:30] docs: update performance benchmark table with CPU latency stats
 [2026-04-19T23:42:30+05:30] feat: support hot-reloading newly recorded .npy sign templates
 [2026-04-20T09:13:29+05:30] feat: adjust cosine distance threshold for rapid transitions
+[2026-04-20T13:16:36+05:30] docs: update performance benchmark table with CPU latency stats

@@ -1,0 +1,352 @@
+{% extends "base.html" %}
+
+{% block title %}ISL Live Detection{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-lg-12">
+        <h1 class="page-title"><i class="fas fa-hands"></i> ISL Live Detection</h1>
+        <p class="text-muted">Show your hands to detect signs. After 10 seconds of no hand, AI will form a sentence.</p>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Webcam -->
+    <div class="col-lg-7">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-video"></i> Live Camera</h5>
+                <span id="hand-indicator" class="badge bg-secondary">No hand</span>
+            </div>
+            <div class="card-body p-0 text-center" style="background: #000;">
+                <img id="webcam-feed" src="/video_feed" style="width: 100%; display: block;">
+            </div>
+            <div class="card-footer">
+                <button id="resetBtn" class="btn btn-outline-accent btn-sm">
+                    <i class="fas fa-redo"></i> Clear All
+                </button>
+                <span class="float-end text-muted"><span id="fps">0</span> FPS</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div class="col-lg-5">
+        <!-- Current Detection -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0">Current Detection</h5>
+            </div>
+            <div class="card-body text-center">
+                <h2 id="current-word" style="font-size: 3em; color: #2ECC71; min-height: 80px; font-weight: bold;">—</h2>
+                <p id="confidence" style="color: #FFF; font-weight: 500; margin-top: 10px;"></p>
+            </div>
+        </div>
+
+        <!-- Detected Words -->
+        <div class="card mb-3">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0" style="color: #FFF; font-weight: 600;">Detected Words</h5>
+                <span id="word-count" class="badge bg-success" style="font-size: 1.1em;">0</span>
+            </div>
+            <div class="card-body" style="max-height: 200px; overflow-y: auto; background: #1a1a1a;">
+                <div id="words-list">
+                    <p class="text-center" style="color: #AAA; font-style: italic;">Show your hands to detect signs...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI Sentence -->
+        <div class="card mb-3">
+            <div class="card-header">
+                <h5 class="mb-0" style="color: #FFF; font-weight: 600;"><i class="fas fa-magic"></i> AI Sentence (Gemini)</h5>
+            </div>
+            <div class="card-body" style="background: #1a1a1a;">
+                <div id="sentence" style="min-height: 60px; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                    <p style="color: #AAA; font-style: italic; margin: 0;">Sentence will appear here after 10s of no hand detection...</p>
+                </div>
+                <div id="hindi-sentence" style="min-height: 40px; display: flex; align-items: center; justify-content: center; margin-top: 10px; padding-top: 10px; border-top: 1px solid #333;">
+                    <p style="color: #888; font-style: italic; margin: 0; font-size: 0.9em;">Hindi translation will appear here...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Audio Buttons -->
+        <div class="card mb-3">
+            <div class="card-body text-center">
+                <button id="playEnglishBtn" class="btn btn-outline-success btn-sm me-2">
+                    <i class="fas fa-volume-up"></i> Play English
+                </button>
+                <button id="playHindiBtn" class="btn btn-outline-info btn-sm">
+                    <i class="fas fa-volume-up"></i> Play Hindi
+                </button>
+                <audio id="audioPlayer" style="display: none;"></audio>
+            </div>
+        </div>
+
+        <!-- Available Templates -->
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0" style="color: #FFF; font-weight: 600;"><i class="fas fa-book"></i> Available Templates</h5>
+                <span id="template-count" class="badge bg-info" style="font-size: 1.1em;">0</span>
+            </div>
+            <div class="card-body" style="background: #1a1a1a; padding: 15px;">
+                <div id="templates-list" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start;">
+                    <p class="text-center" style="color: #AAA; font-style: italic; width: 100%; margin: 0;">Loading templates...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let lastWords = [];
+let lastSentence = '';
+let lastHindiSentence = '';
+let lastTemplates = [];
+
+// Poll status every 300ms
+setInterval(() => {
+    fetch('/status')
+        .then(r => r.json())
+        .then(data => {
+            // Update current word
+            const wordEl = document.getElementById('current-word');
+            const confEl = document.getElementById('confidence');
+            if (data.word) {
+                wordEl.textContent = data.word.toUpperCase();
+                wordEl.style.color = '#2ECC71';
+                confEl.textContent = `${(data.confidence * 100).toFixed(0)}% confidence`;
+            } else {
+                wordEl.textContent = '—';
+                wordEl.style.color = '#7B61FF';
+                confEl.textContent = '';
+            }
+
+            // Update hand indicator
+            const handIndicator = document.getElementById('hand-indicator');
+            if (data.hand_detected) {
+                handIndicator.className = 'badge bg-success';
+                handIndicator.textContent = 'Hand detected';
+            } else {
+                handIndicator.className = 'badge bg-secondary';
+                handIndicator.textContent = 'No hand';
+            }
+
+            // Update FPS
+            document.getElementById('fps').textContent = data.fps;
+
+            // Update words list
+            if (JSON.stringify(data.words) !== JSON.stringify(lastWords)) {
+                lastWords = data.words;
+                updateWordsList(data.words);
+            }
+
+            // Update sentence
+            if (data.sentence !== lastSentence) {
+                lastSentence = data.sentence;
+                updateSentence(data.sentence);
+            }
+
+            // Update Hindi sentence
+            if (data.hindi_sentence !== lastHindiSentence) {
+                lastHindiSentence = data.hindi_sentence;
+                updateHindiSentence(data.hindi_sentence);
+            }
+
+            // Show error if any
+            if (data.status === 'error' && data.error) {
+                document.getElementById('hand-indicator').className = 'badge bg-danger';
+                document.getElementById('hand-indicator').textContent = 'Error: ' + data.error;
+            }
+        })
+        .catch(e => console.error('Error:', e));
+}, 300);
+
+// Poll templates every 3 seconds
+setInterval(() => {
+    fetch('/templates')
+        .then(r => r.json())
+        .then(data => {
+            // Update templates list if changed
+            if (JSON.stringify(data.templates) !== JSON.stringify(lastTemplates)) {
+                lastTemplates = data.templates;
+                updateTemplatesList(data.templates);
+            }
+        })
+        .catch(e => console.error('Templates error:', e));
+}, 3000);
+
+function updateWordsList(words) {
+    const container = document.getElementById('words-list');
+    document.getElementById('word-count').textContent = words.length;
+
+    if (words.length === 0) {
+        container.innerHTML = '<p class="text-center" style="color: #AAA; font-style: italic;">Show your hands to detect signs...</p>';
+        return;
+    }
+
+    container.innerHTML = words.map((word, idx) => `
+        <div class="p-3 mb-2 rounded" style="background: linear-gradient(135deg, #2ECC71 0%, #27AE60 100%); border-left: 4px solid #FFF; box-shadow: 0 2px 5px rgba(46, 204, 113, 0.3);">
+            <strong style="color: #FFF; font-size: 1.1em;">${word.toUpperCase()}</strong>
+            <small style="color: #F0F0F0; float: right; font-weight: 600;">#${idx + 1}</small>
+        </div>
+    `).join('');
+
+    container.scrollTop = container.scrollHeight;
+}
+
+function updateSentence(sentence) {
+    const container = document.getElementById('sentence');
+    if (sentence) {
+        container.innerHTML = `<p class="lead mb-0" style="color: #2ECC71; font-weight: 600; font-size: 1.3em; text-align: center;">"${sentence}"</p>`;
+    } else {
+        container.innerHTML = '<p style="color: #AAA; font-style: italic; margin: 0;">Sentence will appear here after 10s of no hand detection...</p>';
+    }
+}
+
+function updateHindiSentence(sentence) {
+    const container = document.getElementById('hindi-sentence');
+    if (sentence) {
+        container.innerHTML = `<p class="mb-0" style="color: #F39C12; font-weight: 600; font-size: 1.2em; text-align: center;">"${sentence}"</p>`;
+    } else {
+        container.innerHTML = '<p style="color: #888; font-style: italic; margin: 0; font-size: 0.9em;">Hindi translation will appear here...</p>';
+    }
+}
+
+function updateTemplatesList(templates) {
+    const container = document.getElementById('templates-list');
+    document.getElementById('template-count').textContent = templates.length;
+
+    if (templates.length === 0) {
+        container.innerHTML = '<p class="text-center" style="color: #AAA; font-style: italic; width: 100%; margin: 0;">No templates recorded yet...</p>';
+        return;
+    }
+
+    container.innerHTML = templates.map((template) => `
+        <span style="background: linear-gradient(135deg, #3498DB 0%, #2980B9 100%); color: #FFF; padding: 6px 12px; border-radius: 20px; font-size: 0.9em; font-weight: 600; white-space: nowrap; box-shadow: 0 2px 4px rgba(52, 152, 219, 0.3);">
+            ${template.toUpperCase()}
+        </span>
+    `).join('');
+}
+
+// Reset button
+document.getElementById('resetBtn').addEventListener('click', () => {
+    fetch('/reset', { method: 'POST' })
+        .then(r => r.json())
+        .then(() => {
+            lastWords = [];
+            lastSentence = '';
+            lastHindiSentence = '';
+            document.getElementById('current-word').textContent = '—';
+            document.getElementById('confidence').textContent = '';
+            updateWordsList([]);
+            updateSentence('');
+            updateHindiSentence('');
+        })
+        .catch(e => console.error('Reset error:', e));
+});
+
+// Play English Audio
+document.getElementById('playEnglishBtn').addEventListener('click', () => {
+    const btn = document.getElementById('playEnglishBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    
+    fetch('/audio/english')
+        .then(r => r.json())
+        .then(data => {
+            console.log('[AUDIO] Response:', data);
+            if (data.success && data.audio) {
+                console.log('[AUDIO] English audio received, size:', data.audio.length);
+                // Try MP3 first, then WAV
+                let audioUrl = 'data:audio/mp3;base64,' + data.audio;
+                const audio = new Audio(audioUrl);
+                audio.volume = 1.0;
+                
+                audio.play().then(() => {
+                    console.log('[AUDIO] English audio playing');
+                    btn.innerHTML = '<i class="fas fa-volume-up"></i> Playing...';
+                }).catch(e => {
+                    console.error('Audio playback error:', e);
+                    // Try WAV format
+                    audioUrl = 'data:audio/wav;base64,' + data.audio;
+                    const audio2 = new Audio(audioUrl);
+                    audio2.volume = 1.0;
+                    audio2.play().catch(e2 => {
+                        alert("Could not play audio. Error: " + e.message);
+                    });
+                });
+                
+                audio.onended = () => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-volume-up"></i> Play English';
+                };
+            } else {
+                console.error('[AUDIO] Failed:', data);
+                alert("Could not generate English audio: " + (data.error || "Unknown error"));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-volume-up"></i> Play English';
+            }
+        })
+        .catch(e => {
+            console.error('Audio fetch error:', e);
+            alert("Error: " + e.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-volume-up"></i> Play English';
+        });
+});
+
+// Play Hindi Audio
+document.getElementById('playHindiBtn').addEventListener('click', () => {
+    const btn = document.getElementById('playHindiBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    
+    fetch('/audio/hindi')
+        .then(r => r.json())
+        .then(data => {
+            console.log('[AUDIO] Response:', data);
+            if (data.success && data.audio) {
+                console.log('[AUDIO] Hindi audio received, size:', data.audio.length);
+                // Try MP3 first, then WAV
+                let audioUrl = 'data:audio/mp3;base64,' + data.audio;
+                const audio = new Audio(audioUrl);
+                audio.volume = 1.0;
+                
+                audio.play().then(() => {
+                    console.log('[AUDIO] Hindi audio playing');
+                    btn.innerHTML = '<i class="fas fa-volume-up"></i> Playing...';
+                }).catch(e => {
+                    console.error('Audio playback error:', e);
+                    // Try WAV format
+                    audioUrl = 'data:audio/wav;base64,' + data.audio;
+                    const audio2 = new Audio(audioUrl);
+                    audio2.volume = 1.0;
+                    audio2.play().catch(e2 => {
+                        alert("Could not play audio. Error: " + e.message);
+                    });
+                });
+                
+                audio.onended = () => {
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-volume-up"></i> Play Hindi';
+                };
+            } else {
+                console.error('[AUDIO] Failed:', data);
+                alert("Could not generate Hindi audio: " + (data.error || "Unknown error"));
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-volume-up"></i> Play Hindi';
+            }
+        })
+        .catch(e => {
+            console.error('Audio fetch error:', e);
+            alert("Error: " + e.message);
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-volume-up"></i> Play Hindi';
+        });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}Live Webcam - ISL Similarity Studio{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <h1 class="page-title"><i class="fas fa-hand-paper"></i> Live Webcam Detection</h1>
+            <p class="text-muted">Real-time ISL detection with MJPEG streaming</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Video Stream -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body p-0">
+                    <div style="background: #000; position: relative;">
+                        <img id="videoStream" src="/live/video_feed" style="width: 100%; display: block; border-radius: 8px;">
+                        <div id="loadingSpinner" class="position-absolute top-50 start-50 translate-middle" style="display: none;">
+                            <div class="spinner-border text-light" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <button id="resetBtn" class="btn btn-outline-accent">
+                    <i class="fas fa-redo"></i> Reset Words
+                </button>
+                <button id="copyBtn" class="btn btn-outline-accent">
+                    <i class="fas fa-copy"></i> Copy Words
+                </button>
+            </div>
+        </div>
+
+        <!-- Status Panel -->
+        <div class="col-lg-4">
+            <!-- Current Detection -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-language"></i> Detection</h5>
+                </div>
+                <div class="card-body text-center">
+                    <div id="currentWord" style="font-size: 3.5em; font-weight: bold; color: #7B61FF; min-height: 100px; display: flex; align-items: center; justify-content: center;">
+                        —
+                    </div>
+                    <div id="confidence" class="small text-muted mt-2"></div>
+                </div>
+            </div>
+
+            <!-- Hand Status -->
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <div id="handDot" style="width: 15px; height: 15px; border-radius: 50%; background: #888;"></div>
+                        <span id="handText">Waiting for camera...</span>
+                    </div>
+                    <div style="font-size: 0.85em; color: #888;">
+                        <span id="fpsText">FPS: 0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Collected Words -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-list"></i> Detected Words (<span id="wordCount">0</span>)</h5>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    <div id="wordsList">
+                        <p class="text-muted text-center small">No words detected yet...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const POLL_INTERVAL = 100; // Poll status every 100ms
+
+let lastWords = [];
+let statusPollInterval = null;
+
+// Start polling status
+function startStatusPolling() {
+    if (statusPollInterval) clearInterval(statusPollInterval);
+    
+    statusPollInterval = setInterval(() => {
+        fetch('/live/status')
+            .then(r => r.json())
+            .then(data => {
+                updateUI(data);
+            })
+            .catch(e => console.error('Status fetch error:', e));
+    }, POLL_INTERVAL);
+}
+
+function updateUI(data) {
+    // Current word
+    const wordEl = document.getElementById('currentWord');
+    if (data.word) {
+        wordEl.textContent = data.word.toUpperCase();
+        wordEl.style.color = '#2ECC71';
+        document.getElementById('confidence').textContent = `${(data.confidence * 100).toFixed(0)}%`;
+    } else {
+        wordEl.textContent = '—';
+        wordEl.style.color = '#7B61FF';
+        document.getElementById('confidence').textContent = '';
+    }
+    
+    // Hand status
+    const handDot = document.getElementById('handDot');
+    const handText = document.getElementById('handText');
+    if (data.hand_detected) {
+        handDot.style.background = '#2ECC71';
+        handText.textContent = '✓ Hand detected';
+    } else {
+        handDot.style.background = '#E74C3C';
+        handText.textContent = '✗ Show hand...';
+    }
+    
+    // FPS
+    document.getElementById('fpsText').textContent = `FPS: ${data.fps}`;
+    
+    // Words list
+    if (JSON.stringify(data.words) !== JSON.stringify(lastWords)) {
+        lastWords = data.words;
+        updateWordsList(data.words);
+    }
+}
+
+function updateWordsList(words) {
+    const listEl = document.getElementById('wordsList');
+    document.getElementById('wordCount').textContent = words.length;
+    
+    if (words.length === 0) {
+        listEl.innerHTML = '<p class="text-muted text-center small">No words detected yet...</p>';
+        return;
+    }
+    
+    listEl.innerHTML = words.map((word, idx) => `
+        <div class="p-2 mb-2 rounded" style="background: rgba(123,97,255,0.1); border-left: 3px solid #7B61FF;">
+            <strong>${word}</strong>
+            <small class="text-muted float-end">#${idx + 1}</small>
+        </div>
+    `).join('');
+    
+    listEl.scrollTop = listEl.scrollHeight;
+}
+
+// Reset button
+document.getElementById('resetBtn').addEventListener('click', () => {
+    fetch('/live/reset', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            lastWords = [];
+            updateWordsList([]);
+            document.getElementById('currentWord').textContent = '—';
+            document.getElementById('confidence').textContent = '';
+            console.log('Reset successful');
+        })
+        .catch(e => console.error('Reset error:', e));
+});
+
+// Copy button
+document.getElementById('copyBtn').addEventListener('click', () => {
+    const text = lastWords.join(', ');
+    navigator.clipboard.writeText(text).then(() => {
+        alert(`Copied: ${text}`);
+    }).catch(e => console.error('Copy error:', e));
+});
+
+// Start on page load
+document.addEventListener('DOMContentLoaded', () => {
+    startStatusPolling();
+});
+
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
+    if (statusPollInterval) clearInterval(statusPollInterval);
+});
+</script>
+{% endblock %}

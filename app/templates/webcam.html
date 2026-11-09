@@ -1,0 +1,470 @@
+{% extends "base.html" %}
+
+{% block title %}Live Webcam - ISL Similarity Studio{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-lg-12">
+            <h1 class="page-title"><i class="fas fa-hand-paper"></i> Live Webcam Detection</h1>
+            <p class="text-muted">Real-time ISL detection with instant hand tracking</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Video Feed -->
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body p-0">
+                    <div style="position: relative; display: inline-block; width: 100%; background: #000;">
+                        <video id="webcam" autoplay playsinline style="width: 100%; display: none;"></video>
+                        <canvas id="canvas" style="width: 100%; display: block; background: #000;"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-3">
+                <button id="startBtn" class="btn btn-gradient-blue btn-lg me-2">
+                    <i class="fas fa-play"></i> Start
+                </button>
+                <button id="stopBtn" class="btn btn-outline-accent btn-lg" disabled>
+                    <i class="fas fa-stop"></i> Stop
+                </button>
+                <span id="fps" class="ms-3 text-muted" style="font-size: 0.9em;"></span>
+            </div>
+        </div>
+
+        <!-- Results Panel -->
+        <div class="col-lg-4">
+            <!-- Live Detection Result -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-language"></i> Detection</h5>
+                </div>
+                <div class="card-body text-center">
+                    <div id="word" style="font-size: 4em; font-weight: bold; color: #2ECC71; min-height: 120px; display: flex; align-items: center; justify-content: center;">
+                        —
+                    </div>
+                    <div id="confidence" class="small text-muted"></div>
+                </div>
+            </div>
+
+            <!-- Hand Status -->
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div id="handIndicator" style="width: 20px; height: 20px; border-radius: 50%; background: #888;"></div>
+                        <span id="handStatus">Waiting for camera...</span>
+                    </div>
+                    <small class="text-muted d-block mt-2">
+                        <span id="frameCount">0</span> frames | 
+                        <span id="matchCount">0</span> detections
+                    </small>
+                </div>
+            </div>
+
+            <!-- Detected Words -->
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-history"></i> Recent Words</h5>
+                </div>
+                <div class="card-body" style="max-height: 300px; overflow-y: auto;">
+                    <div id="wordsList">
+                        <p class="text-muted text-center small">No detections yet</p>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <button id="clearBtn" class="btn btn-outline-accent btn-sm w-100" disabled>
+                        <i class="fas fa-trash"></i> Clear
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- MediaPipe -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/holistic/holistic.js" crossorigin></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin></script>
+
+<script>
+// ============ OPTIMIZED FOR SPEED ============
+
+const THRESHOLD = 0.15;
+const MIN_HANDS_CONF = 0.5;
+
+let holistic = null;
+let video = null;
+let canvas = null;
+let ctx = null;
+let isRunning = false;
+let templates = {};
+
+// Stats
+let frameCount = 0;
+let matchCount = 0;
+let lastFpsUpdate = 0;
+let fps = 0;
+let detectedWords = [];
+
+// Cache for faster computation
+let landmarkCache = new Float32Array(258);
+let normCache = new Float32Array(258);
+
+// Pre-computed template cache
+let templateCache = {};
+
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const clearBtn = document.getElementById('clearBtn');
+const wordEl = document.getElementById('word');
+const confidenceEl = document.getElementById('confidence');
+const handIndicator = document.getElementById('handIndicator');
+const handStatus = document.getElementById('handStatus');
+const fpsEl = document.getElementById('fps');
+const frameCountEl = document.getElementById('frameCount');
+const matchCountEl = document.getElementById('matchCount');
+const wordsListEl = document.getElementById('wordsList');
+
+// Load templates on page load
+loadTemplates();
+
+startBtn.addEventListener('click', start);
+stopBtn.addEventListener('click', stop);
+clearBtn.addEventListener('click', () => {
+    detectedWords = [];
+    updateWordsList();
+});
+
+async function loadTemplates() {
+    try {
+        const res = await fetch('/api/get-templates');
+        const data = await res.json();
+        templates = data.templates || {};
+        
+        // Pre-process templates for faster matching
+        for (const [name, lm] of Object.entries(templates)) {
+            templateCache[name] = new Float32Array(lm);
+        }
+        
+        console.log(`Loaded ${Object.keys(templates).length} templates`);
+    } catch (e) {
+        console.error('Load templates error:', e);
+    }
+}
+
+async function start() {
+    try {
+        // Initialize MediaPipe
+        holistic = new Holistic({
+            locateFile: file => `https://cdn.jsdelivr.net/npm/@mediapipe/holistic/${file}`
+        });
+        
+        holistic.setOptions({
+            modelComplexity: 1,
+            smoothLandmarks: true,
+            minDetectionConfidence: MIN_HANDS_CONF,
+            minTrackingConfidence: MIN_HANDS_CONF
+        });
+        
+        holistic.onResults(onResults);
+        
+        // Get video/canvas
+        video = document.getElementById('webcam');
+        canvas = document.getElementById('canvas');
+        ctx = canvas.getContext('2d');
+        
+        // Resize canvas
+        canvas.width = 640;
+        canvas.height = 480;
+        
+        // Get webcam
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: { width: 640, height: 480 }
+        });
+        
+        video.srcObject = stream;
+        await new Promise(r => video.onloadedmetadata = r);
+        video.play();
+        
+        isRunning = true;
+        frameCount = 0;
+        lastFpsUpdate = Date.now();
+        
+        startBtn.disabled = true;
+        stopBtn.disabled = false;
+        clearBtn.disabled = false;
+        
+        handStatus.textContent = 'Camera active - show hands!';
+        handIndicator.style.background = '#FFC107';
+        
+        // Start loop
+        detectLoop();
+        
+    } catch (e) {
+        console.error('Start error:', e);
+        alert('Error: ' + e.message);
+    }
+}
+
+function stop() {
+    isRunning = false;
+    if (video && video.srcObject) {
+        video.srcObject.getTracks().forEach(t => t.stop());
+    }
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    clearBtn.disabled = true;
+    handStatus.textContent = 'Camera stopped';
+    handIndicator.style.background = '#888';
+}
+
+async function detectLoop() {
+    if (!isRunning) return;
+    
+    if (video.readyState === 4 && holistic) {
+        try {
+            await holistic.send({ image: video });
+        } catch (e) {
+            console.error('Send error:', e);
+        }
+    }
+    
+    requestAnimationFrame(detectLoop);
+}
+
+async function onResults(results) {
+    frameCount++;
+    
+    // Update FPS
+    const now = Date.now();
+    if (now - lastFpsUpdate > 1000) {
+        fps = frameCount;
+        frameCount = 0;
+        lastFpsUpdate = now;
+        fpsEl.textContent = `${fps} FPS`;
+        frameCountEl.textContent = fps;
+    }
+    
+    // Draw canvas
+    ctx.save();
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // Draw skeleton if hands detected
+    const hasHands = results.leftHandLandmarks || results.rightHandLandmarks;
+    
+    if (hasHands) {
+        // Draw pose (purple)
+        if (results.poseLandmarks) {
+            drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, 
+                { color: '#7B61FF', lineWidth: 2 });
+        }
+        
+        // Draw left hand (green)
+        if (results.leftHandLandmarks) {
+            drawConnectors(ctx, results.leftHandLandmarks, HAND_CONNECTIONS,
+                { color: '#00FF00', lineWidth: 2 });
+            drawLandmarks(ctx, results.leftHandLandmarks,
+                { color: '#00FF00', radius: 3 });
+        }
+        
+        // Draw right hand (red)
+        if (results.rightHandLandmarks) {
+            drawConnectors(ctx, results.rightHandLandmarks, HAND_CONNECTIONS,
+                { color: '#FF0000', lineWidth: 2 });
+            drawLandmarks(ctx, results.rightHandLandmarks,
+                { color: '#FF0000', radius: 3 });
+        }
+        
+        handStatus.textContent = '✓ Hands detected';
+        handIndicator.style.background = '#2ECC71';
+        
+        // Extract and match landmarks FAST
+        extractLandmarks(results);
+        matchFast();
+        
+    } else {
+        handStatus.textContent = 'Show hands...';
+        handIndicator.style.background = '#E74C3C';
+        wordEl.textContent = '—';
+        confidenceEl.textContent = '';
+    }
+    
+    ctx.restore();
+}
+
+// Extract landmarks FAST
+function extractLandmarks(results) {
+    let idx = 0;
+    
+    // Pose (33 * 4)
+    if (results.poseLandmarks) {
+        for (let lm of results.poseLandmarks) {
+            landmarkCache[idx++] = lm.x;
+            landmarkCache[idx++] = lm.y;
+            landmarkCache[idx++] = lm.z;
+            landmarkCache[idx++] = lm.visibility || 0;
+        }
+    } else {
+        idx = 132;
+    }
+    
+    // Left hand (21 * 3)
+    if (results.leftHandLandmarks) {
+        for (let lm of results.leftHandLandmarks) {
+            landmarkCache[idx++] = lm.x;
+            landmarkCache[idx++] = lm.y;
+            landmarkCache[idx++] = lm.z;
+        }
+    } else {
+        idx = 195;
+    }
+    
+    // Right hand (21 * 3)
+    if (results.rightHandLandmarks) {
+        for (let lm of results.rightHandLandmarks) {
+            landmarkCache[idx++] = lm.x;
+            landmarkCache[idx++] = lm.y;
+            landmarkCache[idx++] = lm.z;
+        }
+    }
+}
+
+// Normalize FAST
+function normalizeLandmarks() {
+    // Copy to norm cache
+    normCache.set(landmarkCache);
+    
+    // Normalize pose
+    let pose = normCache.slice(0, 132);
+    if (pose.some(x => x !== 0)) {
+        // Find nose (first point)
+        const nose = [pose[0], pose[1], pose[2]];
+        
+        // Center
+        for (let i = 0; i < 33; i++) {
+            pose[i * 4] -= nose[0];
+            pose[i * 4 + 1] -= nose[1];
+            pose[i * 4 + 2] -= nose[2];
+        }
+        
+        // Scale
+        let maxVal = 0;
+        for (let i = 0; i < 33; i++) {
+            maxVal = Math.max(maxVal, Math.abs(pose[i * 4]));
+            maxVal = Math.max(maxVal, Math.abs(pose[i * 4 + 1]));
+            maxVal = Math.max(maxVal, Math.abs(pose[i * 4 + 2]));
+        }
+        
+        if (maxVal > 0) {
+            for (let i = 0; i < 132; i++) {
+                pose[i] /= maxVal;
+            }
+        }
+    }
+    
+    // Normalize left hand
+    let lh = normCache.slice(132, 195);
+    if (lh.some(x => x !== 0)) {
+        const wrist = [lh[0], lh[1], lh[2]];
+        for (let i = 0; i < 21; i++) {
+            lh[i * 3] -= wrist[0];
+            lh[i * 3 + 1] -= wrist[1];
+            lh[i * 3 + 2] -= wrist[2];
+        }
+        
+        let maxVal = 0;
+        for (let v of lh) maxVal = Math.max(maxVal, Math.abs(v));
+        if (maxVal > 0) {
+            for (let i = 0; i < lh.length; i++) lh[i] /= maxVal;
+        }
+    }
+    
+    // Normalize right hand
+    let rh = normCache.slice(195);
+    if (rh.some(x => x !== 0)) {
+        const wrist = [rh[0], rh[1], rh[2]];
+        for (let i = 0; i < 21; i++) {
+            rh[i * 3] -= wrist[0];
+            rh[i * 3 + 1] -= wrist[1];
+            rh[i * 3 + 2] -= wrist[2];
+        }
+        
+        let maxVal = 0;
+        for (let v of rh) maxVal = Math.max(maxVal, Math.abs(v));
+        if (maxVal > 0) {
+            for (let i = 0; i < rh.length; i++) rh[i] /= maxVal;
+        }
+    }
+}
+
+// Match FAST using server
+async function matchFast() {
+    // Normalize locally
+    normalizeLandmarks();
+    
+    // Send to server for matching
+    try {
+        const res = await fetch('/api/match-sign', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                landmarks: Array.from(normCache)
+            })
+        });
+        
+        const data = await res.json();
+        
+        if (data.word && data.confidence > 0) {
+            wordEl.textContent = data.word.toUpperCase();
+            wordEl.style.color = '#2ECC71';
+            confidenceEl.textContent = `${(data.confidence * 100).toFixed(0)}%`;
+            
+            matchCount++;
+            matchCountEl.textContent = matchCount;
+            
+            addWord(data.word, data.confidence);
+            console.log(`✓ ${data.word} (${data.confidence.toFixed(2)})`);
+        } else {
+            wordEl.textContent = '?';
+            wordEl.style.color = '#95A5A6';
+            confidenceEl.textContent = 'No match';
+        }
+    } catch (e) {
+        console.error('Match error:', e);
+    }
+}
+
+function addWord(word, conf) {
+    const now = new Date();
+    const item = { word, conf, time: now.toLocaleTimeString() };
+    
+    // Remove duplicate if last word is same
+    if (detectedWords.length > 0 && detectedWords[detectedWords.length - 1].word === word) {
+        return; // Skip duplicate
+    }
+    
+    detectedWords.unshift(item);
+    if (detectedWords.length > 10) detectedWords.pop();
+    
+    updateWordsList();
+}
+
+function updateWordsList() {
+    if (detectedWords.length === 0) {
+        wordsListEl.innerHTML = '<p class="text-muted text-center small">No detections yet</p>';
+        return;
+    }
+    
+    wordsListEl.innerHTML = detectedWords.map(item => `
+        <div class="p-2 mb-2 rounded" style="background: rgba(123,97,255,0.1); border-left: 3px solid #7B61FF;">
+            <strong>${item.word}</strong> 
+            <small class="text-muted d-block">${item.time}</small>
+            <small class="text-muted">${(item.conf * 100).toFixed(0)}%</small>
+        </div>
+    `).join('');
+    
+    wordsListEl.scrollTop = 0;
+}
+</script>
+{% endblock %}
